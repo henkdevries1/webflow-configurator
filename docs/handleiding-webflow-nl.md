@@ -86,6 +86,13 @@ Zet een gewone **Form Block** in de data-div en geef de Form Block-wrapper:
 
 Inzendingen komen binnen zoals elk Webflow-formulier (Forms-tab, notificatiemail, Zapier/Make).
 
+**Prijs achter de e-mailpoort ("Klik voor de prijs").** Zet `tcfg-price-gate` = `on` op de configurator.
+Zolang de bezoeker geen e-mail heeft achtergelaten, staat er in de samenvatting een knop "Click for the price";
+die opent hetzelfde formulier met prijs-tekst. Eén keer achterlaten (via een optie of via de knop) ontgrendelt
+opties én prijzen. Alleen de prijs afschermen: `tcfg-gate` = `off`. De prijs van de auto zelf ("From €185,000"):
+`tcfg-base-price`, bijvoorbeeld gekoppeld aan een CMS-veld. Let op: Webflow zet CMS-gegevens in de HTML, dus wie de
+broncode bekijkt kan de prijzen vinden — het is afschermen, geen geheimhouding.
+
 ## 6. Opmaak
 
 Kleuren, afrondingen en beeldverhouding zijn CSS-variabelen op het configurator-element, bijv. in een Embed:

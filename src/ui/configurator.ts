@@ -6,15 +6,15 @@
    window.dataLayer when GTM is present). */
 
 import {
-  availableViews, buildConfig, groupHint, initialState, nearbyRenders, optionPriceLabel, optionSub,
-  pad, paintGroup, partialNote, priceIndication, renderHint, stageRender, stepView, summarize, summaryByGroup,
+  availableViews, buildConfig, buildPrice, groupHint, hasAnyPrice, initialState, isAmountLabel, nearbyRenders,
+  optionPriceText, optionSub, pad, paintGroup, partialNote, renderHint, stageRender, stepView, summarize, summaryByGroup,
   withChoice, withPaint, withToggle, type StageRender,
 } from '../core/model.ts';
-import { formatMoney, labelsFor, type Labels, type MoneyFormat } from '../core/labels.ts';
+import { fill, formatMoney, labelsFor, parseAmount, type Labels, type MoneyFormat } from '../core/labels.ts';
 import { hasParams, readParams, writeParams, DEFAULT_PREFIX } from '../core/url.ts';
 import type { BuildState, Group, Image, Model, Option } from '../core/types.ts';
 import { truthy } from '../core/normalize.ts';
-import { attr } from '../webflow/read-dom.ts';
+import { attr, dataElements } from '../webflow/read-dom.ts';
 import { findForm, WebflowForm } from '../webflow/forms.ts';
 import { h, icon, loaded, reducedMotion } from './dom.ts';
 
@@ -24,6 +24,10 @@ export interface Settings {
   money: MoneyFormat;
   showVat: boolean;
   showPrices: boolean;
+  /** Prices only after the e-mail gate ("Click for the price"). */
+  priceGate: boolean;
+  /** The car's own price ("From €185,000"), or null. */
+  basePriceCents: number | null;
   gate: 'off' | 'first-change';
   url: boolean;
   urlPrefix: string;
@@ -39,6 +43,8 @@ export interface Settings {
 
 export type Options = Partial<Omit<Settings, 'labels' | 'money'>> & {
   labels?: Partial<Record<string, string>>;
+  /** The car's price as typed ("185.000"); see basePriceCents. */
+  basePrice?: string | number;
   currency?: string;
   locale?: string;
 };
@@ -65,6 +71,8 @@ export function readSettings(root: Element, options: Options = {}): Settings {
     money: { currency: options.currency ?? a('currency') ?? 'EUR', locale: options.locale ?? a('locale') ?? (nl ? 'nl-NL' : 'en-GB') },
     showVat: options.showVat ?? flag('vat', true),
     showPrices: options.showPrices ?? flag('prices', true),
+    priceGate: options.priceGate ?? flag('price-gate', false),
+    basePriceCents: options.basePriceCents ?? parseAmount(options.basePrice ?? a('base-price') ?? ''),
     gate: gateAttr === 'off' || gateAttr === 'false' || gateAttr === 'none' ? 'off' : 'first-change',
     url: options.url ?? flag('url', true),
     // Several configurators on one page each get their own parameters.
@@ -103,7 +111,8 @@ function slugId(value: string): string {
 /** Rendered frames kept in the stage; older ones are dropped (memory on phones). */
 const MAX_FRAMES = 24;
 
-type EventName = 'ready' | 'change' | 'start' | 'view' | 'gate' | 'unlock' | 'enquiry' | 'submit' | 'share';
+type EventName = 'ready' | 'change' | 'start' | 'view' | 'gate' | 'unlock' | 'price' | 'enquiry' | 'submit' | 'share';
+type GateReason = 'option' | 'price' | 'enquiry';
 
 const UNLOCK_KEY = 'tcfg-unlocked:';
 
@@ -137,8 +146,9 @@ export class Configurator {
   // options + summary
   private groupEls = new Map<string, HTMLElement>();
   private summaryText!: HTMLElement;
-  private summaryPrice!: HTMLElement;
-  private summaryPriceValue!: HTMLElement;
+  private priceBox!: HTMLElement;
+  private revealButton!: HTMLButtonElement;
+  private priceLines!: HTMLElement;
   private summaryEl!: HTMLElement;
   private cta: HTMLButtonElement | null = null;
   private shareButton: HTMLButtonElement | null = null;
@@ -148,11 +158,14 @@ export class Configurator {
   private gateForm: WebflowForm | null = null;
   private enquiryForm: WebflowForm | null = null;
   private gatePane: HTMLElement | null = null;
+  private gateTitle: HTMLElement | null = null;
+  private gateText: HTMLElement | null = null;
   private enquiryPane: HTMLElement | null = null;
   private enquirySummary: HTMLElement | null = null;
   private pending: (() => void) | null = null;
   private returnFocus: HTMLElement | null = null;
-  private unlocked: boolean;
+  /** The e-mail gate was passed in this browser (or there is none). */
+  private passed: boolean;
   private started = false;
   private cleanup: (() => void)[] = [];
 
@@ -171,7 +184,9 @@ export class Configurator {
     const enquiryEl = findForm(root, 'enquiry-form');
     this.gateForm = gateEl ? new WebflowForm(gateEl) : null;
     this.enquiryForm = enquiryEl ? new WebflowForm(enquiryEl) : null;
-    this.unlocked = settings.gate === 'off' || !this.gateForm || storage()?.getItem(UNLOCK_KEY + settings.id) === '1';
+    this.passed = !this.gateForm || storage()?.getItem(UNLOCK_KEY + settings.id) === '1';
+    if (settings.priceGate && !this.gateForm) console.warn('[tcfg] tcfg-price-gate needs a gate form (tcfg-element="gate-form"); prices are shown.');
+    if (this.gateActive && !this.passed && settings.priceGate) this.scrubPrices();
     this.build();
     this.update(true);
     this.emit('ready', {});
@@ -200,8 +215,35 @@ export class Configurator {
     return summarize(this.model, this.state);
   }
 
+  /** Total price indication (car + priced options), cents, or null. */
   get price(): number | null {
-    return priceIndication(this.model, this.state);
+    return buildPrice(this.model, this.state, this.settings.basePriceCents, this.settings.money, this.L).totalCents;
+  }
+
+  /** The gate is in use: there is a gate form and something it guards. */
+  private get gateActive(): boolean {
+    return !!this.gateForm && (this.settings.gate === 'first-change' || this.settings.priceGate);
+  }
+
+  private get optionsLocked(): boolean {
+    return !!this.gateForm && this.settings.gate === 'first-change' && !this.passed;
+  }
+
+  private get pricesShown(): boolean {
+    return this.settings.showPrices && (!this.settings.priceGate || !this.gateForm || this.passed);
+  }
+
+  /** Locked prices: take them out of the page's data elements (they stay
+   *  in this script's memory). Webflow publishes CMS data in the HTML, so
+   *  this keeps prices out of sight, not secret. */
+  private scrubPrices() {
+    for (const el of dataElements(this.root)) {
+      el.removeAttribute('tcfg-price');
+      el.removeAttribute('data-tcfg-price');
+      for (const f of el.querySelectorAll('[tcfg-field="price"],[data-tcfg-field="price"]')) f.textContent = '';
+    }
+    this.root.removeAttribute('tcfg-base-price');
+    this.root.removeAttribute('data-tcfg-base-price');
   }
 
   shareUrl(): string {
@@ -214,8 +256,9 @@ export class Configurator {
   /** Forget the e-mail gate in this browser (for testing). */
   lock() {
     storage()?.removeItem(UNLOCK_KEY + this.settings.id);
-    this.unlocked = this.settings.gate === 'off' || !this.gateForm;
+    this.passed = !this.gateForm;
     this.updateCta();
+    this.update();
   }
 
   destroy() {
@@ -322,21 +365,38 @@ export class Configurator {
     return wrap;
   }
 
-  private priceTag(o: Option): HTMLElement | null {
-    if (!this.settings.showPrices) return null;
-    const label = optionPriceLabel(o, this.settings.money, this.L);
+  /** "+ €4,850 excl. VAT", "Included", "Standard", "On request" — or null
+   *  (no price in this group, or prices still behind the gate). */
+  private priceTag(o: Option, g: Group): HTMLElement | null {
+    if (!this.pricesShown) return null;
+    const label = optionPriceText(o, g, this.settings.money, this.L);
     if (!label) return null;
-    const vat = this.settings.showVat && o.priceCents !== 0 ? h('span', { class: 'tcfg-vat', text: ` ${this.L.vat}` }) : null;
-    return h('span', { class: 'tcfg-price' }, label, vat);
+    const vat = this.settings.showVat && isAmountLabel(label) ? h('span', { class: 'tcfg-vat', text: ` ${this.L.vat}` }) : null;
+    return h('span', { class: `tcfg-price${isAmountLabel(label) ? '' : ' tcfg-price-word'}` }, label, vat);
+  }
+
+  /** Fill every option's price slot (and the paint chips' labels). */
+  private renderPrices() {
+    for (const g of this.model.groups) {
+      const section = this.groupEls.get(g.code);
+      if (!section) continue;
+      for (const o of g.options) {
+        const slot = section.querySelector<HTMLElement>(`[data-price-for="${CSS.escape(o.code)}"]`);
+        if (slot) slot.replaceChildren(this.priceTag(o, g) ?? '');
+        if (g.kind === 'paint') {
+          const chip = section.querySelector<HTMLElement>(`.tcfg-chip[data-option="${CSS.escape(o.code)}"]`);
+          const label = this.pricesShown ? optionPriceText(o, g, this.settings.money, this.L) : null;
+          chip?.setAttribute('aria-label', label ? `${o.name}, ${label}` : o.name);
+        }
+      }
+    }
   }
 
   private paintBody(g: Group, titleId: string): HTMLElement {
     const chips = h('div', { class: 'tcfg-chips', role: 'radiogroup', 'aria-labelledby': titleId });
     for (const o of g.options) {
-      const priceLabel = this.settings.showPrices ? optionPriceLabel(o, this.settings.money, this.L) : null;
       const chip = h('button', {
-        type: 'button', class: 'tcfg-chip', role: 'radio', 'data-option': o.code,
-        'aria-label': priceLabel ? `${o.name}, ${priceLabel}` : o.name, title: o.name,
+        type: 'button', class: 'tcfg-chip', role: 'radio', 'data-option': o.code, 'aria-label': o.name, title: o.name,
       });
       if (o.image) chip.append(h('img', { src: o.image.src, alt: '', loading: 'lazy' }));
       else chip.style.setProperty('--tcfg-swatch', o.swatch || '#777');
@@ -359,14 +419,14 @@ export class Configurator {
     const choice = g.kind === 'choice';
     const rows = h('div', { class: 'tcfg-rows', role: choice ? 'radiogroup' : 'group', 'aria-labelledby': titleId });
     for (const o of g.options) {
-      const sub = optionSub(o, this.settings.money, this.L);
+      const sub = optionSub(o, g, this.settings.money, this.L);
       const row = h('button', { type: 'button', class: 'tcfg-row', role: choice ? 'radio' : 'switch', 'data-option': o.code });
       if (choice && (o.image || g.options.some((x) => x.image))) {
         row.append(h('span', { class: 'tcfg-thumb', 'aria-hidden': 'true' }, o.image ? h('img', { src: o.image.src, alt: '', loading: 'lazy' }) : icon('wheel')));
       }
       row.append(
         h('span', { class: 'tcfg-row-text' }, h('span', { class: 'tcfg-row-name', text: o.name }), sub ? h('span', { class: 'tcfg-row-sub', text: sub }) : null),
-        this.priceTag(o) ?? '',
+        h('span', { class: 'tcfg-price-slot', 'data-price-for': o.code }),
         h('span', { class: choice ? 'tcfg-radio' : 'tcfg-switch', 'aria-hidden': 'true' }),
       );
       row.addEventListener('click', () => {
@@ -386,10 +446,10 @@ export class Configurator {
   private buildSummary(): HTMLElement {
     const L = this.L;
     this.summaryText = h('p', { class: 'tcfg-summary-text' });
-    this.summaryPriceValue = h('strong', { class: 'tcfg-summary-amount' });
-    this.summaryPrice = h('p', { class: 'tcfg-summary-price', hidden: true },
-      h('span', { text: L.indication }), ' ', this.summaryPriceValue,
-      this.settings.showVat ? h('span', { class: 'tcfg-vat', text: ` ${L.vat}` }) : null);
+    this.revealButton = h('button', { type: 'button', class: 'tcfg-reveal', 'aria-haspopup': 'dialog' }, icon('lock'), h('span', { text: L.clickForPrice }));
+    this.revealButton.addEventListener('click', () => this.onReveal());
+    this.priceLines = h('div', { class: 'tcfg-sum', tabindex: '-1', 'aria-live': 'polite' });
+    this.priceBox = h('div', { class: 'tcfg-pricebox', hidden: true }, this.revealButton, this.priceLines);
     const toggle = h('button', { type: 'button', class: 'tcfg-summary-toggle', 'aria-expanded': 'false', 'aria-label': L.showMore }, icon('chevron'));
     toggle.addEventListener('click', () => {
       const open = this.summaryEl.classList.toggle('is-open');
@@ -409,7 +469,7 @@ export class Configurator {
     }
     this.summaryEl = h('div', { class: 'tcfg-summary' },
       h('div', { class: 'tcfg-summary-head' }, h('span', { class: 'tcfg-summary-label', text: L.yourBuild }), toggle),
-      this.summaryText, this.summaryPrice, actions);
+      this.summaryText, this.priceBox, actions);
     this.updateCta();
     return this.summaryEl;
   }
@@ -434,6 +494,8 @@ export class Configurator {
     };
     if (this.gateForm) {
       this.gatePane = pane('gate', L.gateTitle, L.gateText, this.gateForm);
+      this.gateTitle = this.gatePane.querySelector('.tcfg-dialog-title');
+      this.gateText = this.gatePane.querySelector('.tcfg-dialog-text');
       this.gateForm.onSuccess(() => this.onUnlock());
     }
     if (this.enquiryForm) {
@@ -459,10 +521,25 @@ export class Configurator {
     this.root.append(this.dialog);
   }
 
-  private openPane(which: 'gate' | 'enquiry') {
+  private gateReason: GateReason = 'option';
+
+  private openPane(which: 'gate' | 'enquiry', reason: GateReason = 'option') {
     if (!this.dialog) return;
     const target = which === 'gate' ? this.gatePane : this.enquiryPane;
     if (!target) return;
+    if (which === 'gate') {
+      // The same form behind both doors; the copy says which one.
+      this.gateReason = reason;
+      const price = reason === 'price';
+      if (this.gateTitle) this.gateTitle.textContent = price ? this.L.priceGateTitle : this.L.gateTitle;
+      if (this.gateText) this.gateText.textContent = price ? this.L.priceGateText : this.L.gateText;
+      const submit = this.gateForm?.form?.querySelector<HTMLElement>('input[type="submit"], button[type="submit"]');
+      if (submit) {
+        const label = price ? this.L.priceSubmit : this.L.gateSubmit;
+        if (submit instanceof HTMLInputElement) submit.value = label;
+        else submit.textContent = label;
+      }
+    }
     for (const p of [this.gatePane, this.enquiryPane]) if (p) p.hidden = p !== target;
     this.dialog.setAttribute('aria-labelledby', target.getAttribute('data-title')!);
     this.fillForms();
@@ -482,17 +559,32 @@ export class Configurator {
       this.started = true;
       this.emit('start', {});
     }
-    if (this.unlocked) return run();
+    if (!this.optionsLocked) return run();
     this.pending = run;
-    this.emit('gate', {});
-    this.openPane('gate');
+    this.emit('gate', { reason: 'option' });
+    this.openPane('gate', 'option');
+  }
+
+  /** "Click for the price". */
+  private onReveal() {
+    if (this.pricesShown) return;
+    this.pending = () => this.priceLines.focus();
+    this.emit('gate', { reason: 'price' });
+    this.openPane('gate', 'price');
   }
 
   private onUnlock() {
-    this.unlocked = true;
+    const pricesWereHidden = !this.pricesShown;
+    this.passed = true;
     storage()?.setItem(UNLOCK_KEY + this.settings.id, '1');
     this.emit('unlock', { email: this.gateForm?.email ?? '' });
     this.updateCta();
+    if (pricesWereHidden && this.pricesShown) {
+      // The price lines fade in (styles.css, .is-price-revealed).
+      if (!reducedMotion()) this.root.classList.add('is-price-revealed');
+      this.update();
+      this.emit('price', { via: this.gateReason });
+    }
     const run = this.pending;
     this.pending = null;
     // Let the visitor read Webflow's success message for a moment.
@@ -505,22 +597,22 @@ export class Configurator {
 
   private onCta() {
     this.emit('enquiry', this.payload());
-    if (this.unlocked) this.openPane('enquiry');
+    if (!this.gateActive || this.passed) this.openPane('enquiry');
     else {
       this.pending = () => this.openPane('enquiry');
-      this.openPane('gate');
+      this.openPane('gate', 'enquiry');
     }
   }
 
   private updateCta() {
     if (!this.cta) return;
-    this.cta.textContent = this.unlocked && this.gateForm ? this.L.ctaUnlocked : this.L.cta;
+    this.cta.textContent = this.gateActive && this.passed ? this.L.ctaUnlocked : this.L.cta;
   }
 
   // ------------------------------------------------------------ forms
 
   private payload() {
-    const price = priceIndication(this.model, this.state);
+    const price = this.price;
     return {
       state: this.getState(),
       config: buildConfig(this.state),
@@ -544,7 +636,7 @@ export class Configurator {
     if (this.enquirySummary) {
       this.enquirySummary.replaceChildren(
         h('p', { class: 'tcfg-dialog-build', text: p.summary }),
-        p.priceLabel && this.settings.showPrices && p.price ? h('p', { class: 'tcfg-dialog-price', text: `${this.L.indication} ${values.price}` }) : '',
+        p.priceLabel && this.pricesShown && p.price ? h('p', { class: 'tcfg-dialog-price', text: `${this.L.indication} ${values.price}` }) : '',
       );
     }
   }
@@ -579,17 +671,15 @@ export class Configurator {
         noteEl.textContent = o?.note ?? '';
         noteEl.hidden = !o?.note;
         const priceEl = section.querySelector<HTMLElement>('.tcfg-paint-price')!;
-        const tag = o && g.options.some((x) => x.priceCents !== null) ? this.priceTag(o) : null;
+        const tag = o ? this.priceTag(o, g) : null;
         priceEl.replaceChildren(tag ?? '');
         priceEl.hidden = !tag;
       }
     }
     // Summary
     this.summaryText.textContent = summarize(model, state);
-    // A total of 0 (only "Included" options) says nothing: no line then.
-    const price = this.settings.showPrices ? priceIndication(model, state) : null;
-    this.summaryPrice.hidden = !price;
-    if (price) this.summaryPriceValue.textContent = formatMoney(price, this.settings.money);
+    this.renderPrices();
+    this.renderPriceBox();
     // Viewer
     this.renderStage();
     this.renderThumbs();
@@ -604,6 +694,38 @@ export class Configurator {
     }
     if (this.dialog?.open) this.fillForms();
     if (!first) this.emit('change', this.payload());
+  }
+
+  /** "Your build": "Click for the price" while locked; then "The car —
+   *  From €185,000", "Total — €197,300 excl. VAT — indication" and a note
+   *  for options on request. Nothing at all without any price. */
+  private renderPriceBox() {
+    const L = this.L;
+    const base = this.settings.basePriceCents;
+    const any = this.settings.showPrices && hasAnyPrice(this.model, base);
+    this.priceBox.hidden = !any;
+    if (!any) return;
+    const shown = this.pricesShown;
+    this.revealButton.hidden = shown;
+    this.priceLines.hidden = !shown;
+    if (!shown) return;
+    const p = buildPrice(this.model, this.state, base, this.settings.money, L);
+    const money = (c: number) => formatMoney(c, this.settings.money);
+    const row = (cls: string, label: string, ...value: (Node | string)[]) =>
+      h('div', { class: `tcfg-sum-row ${cls}` }, h('dt', { text: label }), h('dd', {}, ...value));
+    const rows: HTMLElement[] = [];
+    if (p.baseCents !== null) rows.push(row('tcfg-sum-base', L.theCar, fill(L.from, { amount: money(p.baseCents) })));
+    // A total of 0 (only "Included" options, no car price) says nothing.
+    if (p.totalCents !== null && (p.totalCents > 0 || p.baseCents !== null)) {
+      rows.push(row('tcfg-sum-total', p.baseCents === null ? L.options : L.total,
+        h('strong', { class: 'tcfg-summary-amount', text: money(p.totalCents) }),
+        h('span', { class: 'tcfg-vat', text: `${this.settings.showVat ? ` ${L.vat}` : ''} ${L.indicationSuffix}` })));
+    }
+    const note = p.onRequest ? (p.onRequest === 1 ? L.onRequestOne : fill(L.onRequestMany, { n: p.onRequest })) : '';
+    this.priceLines.replaceChildren(
+      h('dl', { class: 'tcfg-sum-list' }, ...rows),
+      note ? h('p', { class: 'tcfg-sum-note', text: note }) : '',
+    );
   }
 
   // ------------------------------------------------------------ stage

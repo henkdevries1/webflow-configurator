@@ -48,13 +48,13 @@
   <header class="demo-head">
     <h1>Tornante Configurator <span style="font-weight:400;opacity:.6">— demo with Webflow markup</span></h1>
     <nav>
-      <a href="/">English</a><a href="/?lang=nl">Nederlands</a><a href="/?theme=dark">Dark</a><a href="/?gate=on">With e-mail gate</a>
+      <a href="/">English</a><a href="/?lang=nl">Nederlands</a><a href="/?theme=dark">Dark</a><a href="/?gate=on">With e-mail gate</a><a href="/?pricegate=on">Click for the price</a>
       <a href="#" onclick="TornanteConfigurator.instances[0].lock(); localStorage.clear(); location.reload(); return false;">Reset gate</a>
     </nav>
   </header>
 
   <!-- The configurator: one Div Block with this attribute. -->
-  <div tcfg-element="configurator" tcfg-id="demo" tcfg-lang="{{LANG}}" tcfg-theme="{{THEME}}" tcfg-gate="{{GATE}}" tcfg-start-view="01">
+  <div tcfg-element="configurator" tcfg-id="demo" tcfg-lang="{{LANG}}" tcfg-theme="{{THEME}}" tcfg-gate="{{GATE}}" tcfg-price-gate="{{PRICEGATE}}" tcfg-base-price="185.000" tcfg-start-view="01">
 
     <!-- Hidden data: static elements and Collection Lists, like in the Webflow Designer. -->
     <div tcfg-element="data">

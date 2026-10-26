@@ -1,6 +1,6 @@
 {
   "name": "@tornante/webflow-configurator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Product configurator for Webflow: options, prices and renders per option combination, driven by attributes and the Webflow CMS.",
   "type": "module",
   "main": "dist/configurator.js",

@@ -121,3 +121,47 @@ test('the build in the URL and back', () => {
   assert.equal(junk.paint, 'rosso-cordoba');
   assert.deepEqual(junk.toggles.cockpit, []);
 });
+
+test('price lines and the build price (Venduetto rules)', async () => {
+  const { optionPriceText, buildPrice, hasAnyPrice } = await import('../src/core/model.ts');
+  const { model } = normalize(raw);
+  const L = labelsFor('en');
+  const money = { locale: 'en-GB', currency: 'EUR' };
+  const g = (code: string) => model.groups.find((x) => x.code === code)!;
+  const o = (group: string, code: string) => g(group).options.find((x) => x.code === code)!;
+  // Wheels: Billet has a price, Stradale (default) not → "Standard".
+  assert.equal(optionPriceText(o('wheels', 'billet'), g('wheels'), money, L), '+ €4,850');
+  assert.equal(optionPriceText(o('wheels', 'stradale'), g('wheels'), money, L), 'Standard');
+  assert.equal(optionPriceText(o('cockpit', 'helmet-shell'), g('cockpit'), money, L), 'Included');
+  // Paint: Verde has a price, Rosso is the default → "Standard".
+  assert.equal(optionPriceText(o('paint', 'rosso-cordoba'), g('paint'), money, L), 'Standard');
+  // A group where nothing has a price shows no price lines.
+  const leather = o('interior-trim', 'leather');
+  assert.equal(optionPriceText(leather, { ...g('interior-trim'), options: [leather] }, money, L), null);
+
+  let s = initialState(model);
+  assert.deepEqual(buildPrice(model, s, 18500000, money, L), { baseCents: 18500000, optionsCents: 0, totalCents: 18500000, onRequest: 0 });
+  s = withToggle(model, s, 'cockpit', 'roll-cage');
+  s = withChoice(model, s, 'interior-trim', 'alcantara');
+  assert.equal(buildPrice(model, s, null, money, L).totalCents, 625000 + 120000);
+  assert.equal(hasAnyPrice(model, null), true);
+});
+
+test('an unpriced non-default option in a priced group is "On request" and counted', async () => {
+  const { optionPriceText, buildPrice } = await import('../src/core/model.ts');
+  const { model } = normalize({
+    groups: [{ title: 'Paint', kind: 'paint' }, { title: 'Wheels' }],
+    options: [
+      { group: 'paint', name: 'Rosso', default: 'yes' },
+      { group: 'Wheels', name: 'Stradale', default: 'yes' },
+      { group: 'Wheels', name: 'Billet', price: '4850' },
+      { group: 'Wheels', name: 'Turbina' },
+    ],
+  });
+  const L = labelsFor('en');
+  const money = { locale: 'en-GB', currency: 'EUR' };
+  const wheels = model.groups[1];
+  assert.equal(optionPriceText(wheels.options[2], wheels, money, L), 'On request');
+  const s = withChoice(model, initialState(model), 'wheels', 'turbina');
+  assert.deepEqual(buildPrice(model, s, 18500000, money, L), { baseCents: 18500000, optionsCents: null, totalCents: 18500000, onRequest: 1 });
+});

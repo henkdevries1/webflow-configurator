@@ -190,7 +190,9 @@ export function normalize(raw: RawData): Normalized {
     };
     group.options.push(option);
   }
-  // A paint or choice group starts with one option: keep only the first default.
+  // A paint or choice group starts with one option: keep only the first
+  // default, and without one the first option is the default (it is what
+  // the build starts with, so it reads "Standard", not "On request").
   for (const g of groups) {
     if (g.kind === 'toggle') continue;
     let seen = false;
@@ -198,6 +200,7 @@ export function normalize(raw: RawData): Normalized {
       if (o.isDefault && seen) o.isDefault = false;
       if (o.isDefault) seen = true;
     }
+    if (!seen && g.options.length) g.options[0].isDefault = true;
   }
   const paintGroups = groups.filter((g) => g.kind === 'paint');
   for (const extra of paintGroups.slice(1)) {

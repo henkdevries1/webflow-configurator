@@ -4,6 +4,7 @@
 // for webflow.js's form handling that logs what would be submitted.
 //   npm run demo            English
 //   http://localhost:4321/?lang=nl   Dutch
+//   ?gate=on (e-mail before the first option), ?pricegate=on ("Click for the price")
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
@@ -58,12 +59,14 @@ async function page(url) {
   const n = Math.max(1, Number(url.searchParams.get(PAGE_KEY) ?? 1));
   const lang = url.searchParams.get('lang') === 'nl' ? 'nl' : 'en';
   const dark = url.searchParams.get('theme') === 'dark';
-  const gate = url.searchParams.get('gate') === 'on';
+  const priceGate = url.searchParams.get('pricegate') === 'on';
+  const gate = url.searchParams.get('gate') === 'on' || priceGate;
   const tpl = await readFile(join(root, 'demo/index.html'), 'utf8');
   return tpl
     .replaceAll('{{LANG}}', lang)
     .replaceAll('{{THEME}}', dark ? 'dark' : 'light')
-    .replaceAll('{{GATE}}', gate ? 'first-change' : 'off')
+    .replaceAll('{{GATE}}', url.searchParams.get('gate') === 'on' ? 'first-change' : 'off')
+    .replaceAll('{{PRICEGATE}}', priceGate ? 'on' : 'off')
     .replace('{{PAINTS}}', optionItems('paint', paints))
     .replace('{{WHEELS}}', optionItems('Wheels', wheels))
     .replace('{{COCKPIT}}', optionItems('cockpit', cockpit))
@@ -101,4 +104,4 @@ createServer(async (req, res) => {
     res.writeHead(404);
     res.end('Not found');
   }
-}).listen(PORT, () => console.log(`Demo: http://localhost:${PORT}  (?lang=nl, ?theme=dark, ?gate=on)`));
+}).listen(PORT, () => console.log(`Demo: http://localhost:${PORT}  (?lang=nl, ?theme=dark, ?gate=on, ?pricegate=on)`));

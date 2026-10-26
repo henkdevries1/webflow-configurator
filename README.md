@@ -162,6 +162,27 @@ and give the Form Block wrapper one of these attributes:
 - `tcfg-element=enquiry-form` — **send my build**. Adds the *Enquire* button to the summary and opens
   the form in a dialog, with the build summarised above it.
 
+### Prices behind the gate ("Click for the price")
+
+With `tcfg-price-gate="on"` on the configurator (and a gate form), no price is shown until the visitor
+has left their e-mail: "Your build" shows a **Click for the price** button that opens the same gate form
+with price copy ("Enter your email to see the price."). Passing the gate either way — the first option
+click or the price button — unlocks both the options and the prices, which then fade in. To gate only
+the prices, add `tcfg-gate="off"`.
+
+Once shown, following the Venduetto rules:
+
+- options: “+ €4,850 excl. VAT”, “Included” (0), and — only in a group where some option has a
+  price — “Standard” for the unpriced default and “On request” for any other unpriced option;
+- “Your build”: “The car — From €185,000” (`tcfg-base-price`, bind it to a CMS field) and
+  “Total — €189,850 excl. VAT — indication” (car + priced options; “Options” without a car price),
+  plus “1 option on request not included.” when it applies.
+
+> **Not secret.** Webflow publishes CMS content in the page’s HTML, so a determined visitor can
+> still find the prices in the page source; the module only removes them from the page’s data
+> elements once read. For truly withheld prices, serve them from your own endpoint after the gate
+> (as venduetto.com does) — the `tcfg:unlock` event is the hook for that.
+
 The script adds (and keeps current) hidden fields in both forms, so every submission carries the build:
 
 | Field | Example |
@@ -190,7 +211,9 @@ On the `tcfg-element=configurator` element:
 | `tcfg-currency` / `tcfg-locale` | `EUR` / `en-GB`, `nl-NL` | Price format |
 | `tcfg-vat` | `true` | Show “excl. VAT” after prices |
 | `tcfg-prices` | `true` | `false` hides every price |
-| `tcfg-gate` | on when a gate form exists | `off` disables the e-mail gate |
+| `tcfg-gate` | on when a gate form exists | `off`: no e-mail gate before the first option click |
+| `tcfg-price-gate` | `off` | `on`: prices only after the e-mail gate (“Click for the price”) |
+| `tcfg-base-price` | | The car’s own price, e.g. `185.000` (“The car — From €185,000”) |
 | `tcfg-start-view` | first view | View the page opens on, e.g. `02` |
 | `tcfg-url` | `true` | Keep the build in the address bar (`?cfg-paint=…`) |
 | `tcfg-url-prefix` | `cfg-` | Prefix of those parameters |
@@ -238,7 +261,8 @@ Events bubble from the configurator element (`detail.id` = `tcfg-id`):
 | `tcfg:start` | first option click | |
 | `tcfg:change` | any change | `state`, `config`, `summary`, `price` (cents), `priceLabel`, `shareUrl` |
 | `tcfg:view` | a view seen for the first time | `view` |
-| `tcfg:gate` / `tcfg:unlock` | gate opened / passed | `email` on unlock |
+| `tcfg:gate` / `tcfg:unlock` | gate opened (`reason`: option, price, enquiry) / passed | `email` on unlock |
+| `tcfg:price` | prices revealed | `via` (option, price, enquiry) |
 | `tcfg:enquiry` / `tcfg:submit` | enquiry opened / sent | as `change` |
 | `tcfg:share` | share clicked | `shareUrl` |
 

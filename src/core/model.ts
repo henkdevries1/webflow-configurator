@@ -230,12 +230,55 @@ export function optionPriceLabel(o: Option, money: MoneyFormat, labels: Labels):
   return o.priceCents === 0 ? labels.included : `+ ${formatMoney(o.priceCents, money)}`;
 }
 
+/** The price line of an option (Venduetto's optionPriceText): "+ €4,850",
+ *  "Included" (€0), and — only in a group where some option has a price —
+ *  "Standard" for an unpriced default option and "On request" for any other
+ *  unpriced one. A group without any price shows no price lines (null). */
+export function optionPriceText(o: Option, group: Group, money: MoneyFormat, labels: Labels): string | null {
+  const amount = optionPriceLabel(o, money, labels);
+  if (amount) return amount;
+  if (!group.options.some(hasPrice)) return null;
+  return o.isDefault ? labels.standard : labels.onRequest;
+}
+
+/** An amount ("+ €4,850") gets "excl. VAT" after it; words do not. */
+export function isAmountLabel(label: string | null): boolean {
+  return !!label && /\d/.test(label);
+}
+
 /** The line under an option's name: its note, else "Standard" for the
- *  option a build starts with (when it has no price label). */
-export function optionSub(o: Option, money: MoneyFormat, labels: Labels): string {
+ *  option a build starts with (when its price line does not say so already). */
+export function optionSub(o: Option, group: Group, money: MoneyFormat, labels: Labels): string {
   const note = o.note.trim();
   if (note) return note;
-  return o.isDefault && optionPriceLabel(o, money, labels) === null ? labels.standard : '';
+  return o.isDefault && optionPriceText(o, group, money, labels) === null ? labels.standard : '';
+}
+
+/** The price of a build as the summary shows it. */
+export interface BuildPrice {
+  /** The car, from (cents), or null when not set. */
+  baseCents: number | null;
+  /** Sum of the chosen options that have a price, or null when none has. */
+  optionsCents: number | null;
+  /** base + options; null when neither is there (then no total line). */
+  totalCents: number | null;
+  /** Chosen options that read "On request" (not in the total). */
+  onRequest: number;
+}
+
+export function buildPrice(model: Model, state: BuildState, baseCents: number | null, money: MoneyFormat, labels: Labels): BuildPrice {
+  const optionsCents = priceIndication(model, state);
+  let onRequest = 0;
+  for (const { group, option } of chosenOptions(model, state)) {
+    if (optionPriceText(option, group, money, labels) === labels.onRequest) onRequest++;
+  }
+  const totalCents = baseCents === null && optionsCents === null ? null : (baseCents ?? 0) + (optionsCents ?? 0);
+  return { baseCents, optionsCents, totalCents, onRequest };
+}
+
+/** True when the configurator has anything to show about price. */
+export function hasAnyPrice(model: Model, baseCents: number | null): boolean {
+  return baseCents !== null || model.groups.some((g) => g.options.some(hasPrice));
 }
 
 /** The line under a group's title: what the card asks for. */
