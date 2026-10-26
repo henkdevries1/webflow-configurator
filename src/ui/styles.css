@@ -1,0 +1,437 @@
+/* Tornante Configurator — default look. Everything is driven by the
+   --tcfg-* custom properties below: set them on the configurator element
+   (Webflow: Style panel → Custom properties, or a class) to make it your
+   own. Fonts are inherited from the site. Layout follows the width of the
+   configurator itself (container queries), not the window, so it works in
+   any section. Specificity is kept at one class so a site class wins. */
+
+.tcfg {
+  --tcfg-bg: #f6f5f2;
+  --tcfg-surface: #ffffff;
+  --tcfg-surface-2: #f0eee9;
+  --tcfg-text: #16181a;
+  --tcfg-muted: rgba(22, 24, 26, 0.62);
+  --tcfg-line: rgba(22, 24, 26, 0.12);
+  --tcfg-accent: #16181a;
+  --tcfg-on-accent: #ffffff;
+  --tcfg-stage-bg: #e9e7e1;
+  --tcfg-glass: rgba(255, 255, 255, 0.78);
+  --tcfg-radius-sm: 8px;
+  --tcfg-radius-md: 12px;
+  --tcfg-radius-lg: 18px;
+  --tcfg-ratio: 16 / 9;
+  --tcfg-side-w: clamp(320px, 32%, 440px);
+  --tcfg-gap: clamp(16px, 2vw, 28px);
+  --tcfg-fade: 0.6s;
+
+  container-type: inline-size;
+  container-name: tcfg;
+  position: relative;
+  color: var(--tcfg-text);
+  background: var(--tcfg-bg);
+  font: inherit;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tcfg[data-tcfg-theme="dark"] {
+  --tcfg-bg: #111312;
+  --tcfg-surface: #1a1d1b;
+  --tcfg-surface-2: #232724;
+  --tcfg-text: #f2eedc;
+  --tcfg-muted: rgba(242, 238, 220, 0.64);
+  --tcfg-line: rgba(242, 238, 220, 0.12);
+  --tcfg-accent: #f2eedc;
+  --tcfg-on-accent: #111312;
+  --tcfg-stage-bg: #1a1d1b;
+  --tcfg-glass: rgba(14, 16, 12, 0.66);
+}
+
+.tcfg *,
+.tcfg *::before,
+.tcfg *::after { box-sizing: border-box; }
+.tcfg [hidden] { display: none !important; }
+.tcfg button { font: inherit; color: inherit; }
+
+/* Data lists and the forms before they move into the dialog */
+[tcfg-element="data"], [data-tcfg-element="data"] { display: none !important; }
+
+.tcfg[aria-busy="true"] {
+  min-height: 320px;
+  border-radius: var(--tcfg-radius-lg);
+  background: linear-gradient(90deg, var(--tcfg-stage-bg), var(--tcfg-surface-2), var(--tcfg-stage-bg));
+  background-size: 200% 100%;
+  animation: tcfg-pulse 1.4s ease-in-out infinite;
+}
+@keyframes tcfg-pulse { to { background-position: -200% 0; } }
+
+/* ---------------------------------------------------------------- layout */
+
+.tcfg-layout {
+  display: grid;
+  gap: var(--tcfg-gap);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container tcfg (min-width: 900px) {
+  .tcfg-layout {
+    grid-template-columns: minmax(0, 1fr) var(--tcfg-side-w);
+    align-items: start;
+  }
+  .tcfg-viewer { position: sticky; top: var(--tcfg-sticky-top, 16px); }
+}
+
+/* ---------------------------------------------------------------- viewer */
+
+.tcfg-viewer { min-width: 0; }
+.tcfg-viewer.is-fullscreen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--tcfg-bg);
+}
+
+.tcfg-stage {
+  position: relative;
+  aspect-ratio: var(--tcfg-ratio);
+  overflow: hidden;
+  border-radius: var(--tcfg-radius-lg);
+  background: var(--tcfg-stage-bg);
+  outline: none;
+  touch-action: pan-y;
+  user-select: none;
+}
+.tcfg-stage:focus-visible { box-shadow: 0 0 0 2px var(--tcfg-bg), 0 0 0 4px var(--tcfg-accent); }
+.is-fullscreen .tcfg-stage { width: min(100%, calc((100vh - 140px) * 16 / 9)); margin: 0 auto; }
+
+.tcfg-frames { position: absolute; inset: 0; }
+.tcfg-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  z-index: 0;
+  transition: opacity var(--tcfg-fade) ease;
+  pointer-events: none;
+  max-width: none;
+}
+/* The new render fades in on top; the old one stays until it is covered. */
+.tcfg-frame.is-active { opacity: 1; z-index: 2; }
+.tcfg-frame.is-leaving { opacity: 0; z-index: 1; transition-delay: var(--tcfg-fade); }
+
+.tcfg-hint,
+.tcfg-position {
+  position: absolute;
+  z-index: 3;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--tcfg-radius-sm);
+  background: var(--tcfg-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+  color: var(--tcfg-text);
+}
+.tcfg-hint { top: 12px; left: 12px; right: 64px; width: max-content; max-width: calc(100% - 76px); }
+.tcfg-position { bottom: 12px; left: 12px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; white-space: pre; }
+.tcfg-position:empty { display: none; }
+
+.tcfg-arrow,
+.tcfg-fs {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tcfg-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.tcfg-arrow { top: 50%; transform: translateY(-50%); }
+.tcfg-arrow-prev { left: 12px; }
+.tcfg-arrow-next { right: 12px; }
+.tcfg-fs { top: 12px; right: 12px; }
+.tcfg-stage:hover .tcfg-arrow,
+.tcfg-stage:hover .tcfg-fs,
+.tcfg-stage:focus-within .tcfg-arrow,
+.tcfg-stage:focus-within .tcfg-fs { opacity: 1; }
+.tcfg-arrow:focus-visible,
+.tcfg-fs:focus-visible { opacity: 1; outline: 2px solid var(--tcfg-accent); outline-offset: 2px; }
+.tcfg-stage.has-one-view .tcfg-arrow,
+.tcfg-stage.is-empty .tcfg-arrow,
+.tcfg-stage.is-empty .tcfg-fs { display: none; }
+@media (hover: none) {
+  .tcfg-arrow, .tcfg-fs { opacity: 1; }
+  .tcfg-arrow { display: none; }
+}
+
+.tcfg-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--tcfg-muted);
+}
+
+.tcfg-thumbs {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.tcfg-thumbs::-webkit-scrollbar { display: none; }
+.tcfg-thumb-button {
+  flex: 0 0 calc((100% - 7 * 8px) / 8);
+  min-width: 64px;
+  aspect-ratio: var(--tcfg-ratio);
+  padding: 0;
+  border: 0;
+  border-radius: var(--tcfg-radius-sm);
+  overflow: hidden;
+  background: var(--tcfg-stage-bg);
+  cursor: pointer;
+  scroll-snap-align: start;
+  opacity: 0.62;
+  transition: opacity 0.2s ease, box-shadow 0.2s ease;
+}
+.tcfg-thumb-button img { display: block; width: 100%; height: 100%; object-fit: cover; max-width: none; }
+.tcfg-thumb-button:hover { opacity: 0.9; }
+.tcfg-thumb-button.is-active { opacity: 1; box-shadow: inset 0 0 0 2px var(--tcfg-accent); }
+.tcfg-thumb-button:focus-visible { outline: 2px solid var(--tcfg-accent); outline-offset: 2px; }
+
+.tcfg-note { margin: 8px 0 0; font-size: 12px; color: var(--tcfg-muted); }
+
+/* ---------------------------------------------------------------- options */
+
+.tcfg-panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tcfg-groups { display: flex; flex-direction: column; gap: 12px; }
+
+.tcfg-group {
+  padding: 16px;
+  border-radius: var(--tcfg-radius-lg);
+  background: var(--tcfg-surface);
+  border: 1px solid var(--tcfg-line);
+}
+.tcfg-group-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 12px;
+  margin-bottom: 12px;
+}
+.tcfg-group-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; letter-spacing: 0; }
+.tcfg-group-index { font-size: 12px; color: var(--tcfg-muted); font-variant-numeric: tabular-nums; }
+.tcfg-group-hint { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; color: var(--tcfg-muted); }
+
+/* Paint chips */
+.tcfg-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tcfg-chip {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--tcfg-line);
+  border-radius: var(--tcfg-radius-sm);
+  background: var(--tcfg-swatch, #777);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.tcfg-chip img { display: block; width: 100%; height: 100%; object-fit: cover; max-width: none; }
+.tcfg-chip:hover { transform: translateY(-1px); }
+.tcfg-chip.is-active { box-shadow: 0 0 0 2px var(--tcfg-surface), 0 0 0 4px var(--tcfg-accent); }
+.tcfg-chip:focus-visible { outline: 2px solid var(--tcfg-accent); outline-offset: 4px; }
+.tcfg-paint-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 12px; font-size: 14px; }
+.tcfg-paint-name { font-weight: 600; }
+.tcfg-paint-note { color: var(--tcfg-muted); font-size: 13px; }
+.tcfg-paint-price { margin-left: auto; }
+
+/* Choice and toggle rows */
+.tcfg-rows { display: flex; flex-direction: column; gap: 6px; }
+.tcfg-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--tcfg-line);
+  border-radius: var(--tcfg-radius-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.tcfg-row:hover { background: var(--tcfg-surface-2); }
+.tcfg-row.is-active { border-color: var(--tcfg-accent); background: var(--tcfg-surface-2); }
+.tcfg-row:focus-visible { outline: 2px solid var(--tcfg-accent); outline-offset: 2px; }
+.tcfg-thumb {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--tcfg-surface-2);
+  color: var(--tcfg-muted);
+}
+.tcfg-thumb img { width: 100%; height: 100%; object-fit: cover; max-width: none; }
+.tcfg-row-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.tcfg-row-name { font-size: 14px; font-weight: 500; }
+.tcfg-row-sub { font-size: 12px; color: var(--tcfg-muted); }
+.tcfg-price { font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tcfg-vat { color: var(--tcfg-muted); font-size: 11px; }
+
+.tcfg-radio {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--tcfg-muted);
+  transition: border 0.15s ease;
+}
+.tcfg-row.is-active .tcfg-radio { border: 5px solid var(--tcfg-accent); }
+
+.tcfg-switch {
+  position: relative;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--tcfg-line);
+  transition: background 0.2s ease;
+}
+.tcfg-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--tcfg-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+.tcfg-row.is-active .tcfg-switch { background: var(--tcfg-accent); }
+.tcfg-row.is-active .tcfg-switch::after { transform: translateX(16px); }
+
+/* ---------------------------------------------------------------- summary */
+
+.tcfg-summary {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  padding: 16px;
+  border-radius: var(--tcfg-radius-lg);
+  background: var(--tcfg-surface);
+  border: 1px solid var(--tcfg-line);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.04);
+}
+.tcfg-summary-head { display: flex; align-items: center; justify-content: space-between; }
+.tcfg-summary-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tcfg-muted); }
+.tcfg-summary-toggle { display: none; padding: 4px; border: 0; background: none; cursor: pointer; transition: transform 0.2s ease; }
+.tcfg-summary-text { margin: 6px 0 0; font-size: 14px; }
+.tcfg-summary-price { margin: 8px 0 0; font-size: 13px; color: var(--tcfg-muted); }
+.tcfg-summary-amount { color: var(--tcfg-text); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tcfg-summary-actions { display: flex; gap: 8px; margin-top: 14px; }
+.tcfg-summary-actions:empty { display: none; }
+
+.tcfg-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid var(--tcfg-accent);
+  border-radius: var(--tcfg-radius-sm);
+  background: var(--tcfg-accent);
+  color: var(--tcfg-on-accent) !important;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.tcfg-button:hover { opacity: 0.88; }
+.tcfg-button:focus-visible { outline: 2px solid var(--tcfg-accent); outline-offset: 2px; }
+.tcfg-button-quiet { background: transparent; color: var(--tcfg-text) !important; border-color: var(--tcfg-line); }
+.tcfg-cta { flex: 1; }
+
+/* Narrow: the summary becomes a slim bar at the bottom of the configurator */
+@container tcfg (max-width: 899px) {
+  /* The car stays in sight while the options scroll under it.
+     tcfg-sticky="false" on the configurator switches this off. */
+  .tcfg:not([tcfg-sticky="false"]) .tcfg-viewer {
+    position: sticky;
+    top: var(--tcfg-sticky-top, 0px);
+    z-index: 5;
+    padding-bottom: 8px;
+    background: var(--tcfg-bg);
+  }
+  .tcfg-thumbs { margin-top: 8px; }
+  .tcfg-summary { padding: 12px 14px; }
+  .tcfg-summary-toggle { display: block; }
+  .tcfg-summary-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tcfg-summary.is-open .tcfg-summary-text { white-space: normal; }
+  .tcfg-summary.is-open .tcfg-summary-toggle { transform: rotate(180deg); }
+  .tcfg-summary-actions { margin-top: 10px; }
+  .tcfg-thumb-button { flex-basis: 64px; }
+}
+
+/* ---------------------------------------------------------------- dialog */
+
+.tcfg-dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--tcfg-radius-lg);
+  background: var(--tcfg-surface);
+  color: var(--tcfg-text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+}
+.tcfg-dialog::backdrop { background: rgba(10, 12, 11, 0.55); backdrop-filter: blur(2px); }
+.tcfg-dialog-panel { position: relative; padding: 28px 24px 24px; }
+.tcfg-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.tcfg-dialog-close:hover { background: var(--tcfg-surface-2); }
+.tcfg-dialog-title { margin: 0 40px 6px 0; font-size: 20px; line-height: 1.25; font-weight: 600; }
+.tcfg-dialog-text { margin: 0 0 16px; color: var(--tcfg-muted); font-size: 14px; }
+.tcfg-dialog-summary { margin: 0 0 16px; padding: 12px 14px; border-radius: var(--tcfg-radius-md); background: var(--tcfg-surface-2); font-size: 13px; }
+.tcfg-dialog-summary p { margin: 0; }
+.tcfg-dialog-price { margin-top: 4px !important; color: var(--tcfg-muted); }
+.tcfg-dialog .tcfg-form { display: block !important; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tcfg { --tcfg-fade: 0.01s; }
+  .tcfg *, .tcfg *::before, .tcfg *::after { transition-duration: 0.01s !important; animation: none !important; }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@tornante/webflow-configurator",
+  "version": "0.1.0",
+  "description": "Product configurator for Webflow: options, prices and renders per option combination, driven by attributes and the Webflow CMS.",
+  "type": "module",
+  "main": "dist/configurator.js",
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "test": "node --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "demo": "node scripts/build.mjs && node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0"
+  }
+}

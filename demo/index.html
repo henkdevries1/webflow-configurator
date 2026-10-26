@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="{{LANG}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tornante Configurator — demo</title>
+  <style>
+    body { margin: 0; font-family: "Inter", system-ui, -apple-system, sans-serif; background: #f6f5f2; color: #16181a; }
+    .demo-wrap { max-width: 1440px; margin: 0 auto; padding: 24px 16px 64px; }
+    .demo-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 20px; }
+    .demo-head h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+    .demo-head nav { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+    .demo-head a { color: inherit; }
+    .demo-log { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-top: 32px; }
+    .demo-log section { padding: 16px; border-radius: 14px; background: #fff; border: 1px solid rgba(0,0,0,.08); }
+    .demo-log h2 { margin: 0 0 8px; font-size: 14px; }
+    .demo-log pre { margin: 0; max-height: 260px; overflow: auto; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .demo-form label { display: block; margin: 10px 0 4px; font-size: 13px; }
+    .demo-input { width: 100%; padding: 10px 12px; border: 1px solid rgba(0,0,0,.18); border-radius: 8px; font: inherit; background: #fff; color: #16181a; }
+    .demo-submit { margin-top: 16px; width: 100%; }
+    .w-form-done { padding: 16px; border-radius: 10px; background: #e7f2e8; color: #1d4d26; }
+  </style>
+  <script>
+    // Stand-in for webflow.js forms: serialise every field (data-name, else
+    // name) at submit time, show the success block, log the submission.
+    window.Webflow = window.Webflow || [];
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form.closest('.w-form')) return;
+      e.preventDefault();
+      var data = {};
+      form.querySelectorAll('input:not([type=submit]), textarea, select').forEach(function (f, i) {
+        data[f.getAttribute('data-name') || f.name || 'Field ' + (i + 1)] = f.value;
+      });
+      var block = form.closest('.w-form');
+      setTimeout(function () {
+        form.style.display = 'none';
+        block.querySelector('.w-form-done').style.display = 'block';
+        var log = document.getElementById('demo-submissions');
+        log.textContent = JSON.stringify({ form: form.getAttribute('data-name'), data: data }, null, 2) + '\n\n' + log.textContent;
+      }, 400);
+    });
+  </script>
+  <script defer src="/dist/configurator.js"></script>
+</head>
+<body>
+<div class="demo-wrap">
+  <header class="demo-head">
+    <h1>Tornante Configurator <span style="font-weight:400;opacity:.6">— demo with Webflow markup</span></h1>
+    <nav>
+      <a href="/">English</a><a href="/?lang=nl">Nederlands</a><a href="/?theme=dark">Dark</a><a href="/?gate=on">With e-mail gate</a>
+      <a href="#" onclick="TornanteConfigurator.instances[0].lock(); localStorage.clear(); location.reload(); return false;">Reset gate</a>
+    </nav>
+  </header>
+
+  <!-- The configurator: one Div Block with this attribute. -->
+  <div tcfg-element="configurator" tcfg-id="demo" tcfg-lang="{{LANG}}" tcfg-theme="{{THEME}}" tcfg-gate="{{GATE}}" tcfg-start-view="01">
+
+    <!-- Hidden data: static elements and Collection Lists, like in the Webflow Designer. -->
+    <div tcfg-element="data">
+      <div tcfg-element="group" tcfg-code="paint" tcfg-kind="paint" tcfg-title="Paint"></div>
+      <div tcfg-element="group" tcfg-code="wheels" tcfg-kind="choice" tcfg-title="Wheels"></div>
+      <div tcfg-element="group" tcfg-code="cockpit" tcfg-kind="toggle" tcfg-title="Cockpit"></div>
+      <div tcfg-element="group" tcfg-code="interior" tcfg-kind="choice" tcfg-title="Interior trim" tcfg-renders="false"></div>
+      {{VIEWS}}
+
+      <!-- Collection List "Paints" -->
+      <div class="w-dyn-list"><div role="list" class="w-dyn-items">{{PAINTS}}</div></div>
+      <!-- Collection List "Options" (one per group here; one list with a Group field works too) -->
+      <div class="w-dyn-list"><div role="list" class="w-dyn-items">{{WHEELS}}{{COCKPIT}}{{TRIMS}}</div></div>
+      <!-- Collection List "Renders", paginated at 20 items -->
+      <div class="w-dyn-list"><div role="list" class="w-dyn-items">{{RENDERS}}</div>{{PAGINATION}}</div>
+
+      {{GATE_FORM}}
+      {{ENQUIRY_FORM}}
+    </div>
+  </div>
+
+  <div class="demo-log">
+    <section><h2>Form submissions (what Webflow would receive)</h2><pre id="demo-submissions"></pre></section>
+    <section><h2>Events (tcfg:*)</h2><pre id="demo-events"></pre></section>
+  </div>
+</div>
+<script>
+  ['ready', 'start', 'change', 'view', 'gate', 'unlock', 'enquiry', 'submit', 'share'].forEach(function (name) {
+    document.addEventListener('tcfg:' + name, function (e) {
+      var d = e.detail || {};
+      var line = name + (d.summary ? ' — ' + d.summary : d.view ? ' — view ' + d.view : '');
+      var log = document.getElementById('demo-events');
+      log.textContent = line + '\n' + log.textContent;
+    });
+  });
+</script>
+</body>
+</html>
