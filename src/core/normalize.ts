@@ -118,11 +118,12 @@ function sorted<T>(items: T[], sortOf: (t: T) => unknown): T[] {
 }
 
 /** The file name a render URL carries: decoded, without the query, the
- *  Webflow asset id ("64f1…e2_") and the responsive-size suffix ("-p-800"). */
+ *  Webflow asset id(s) ("64f1…e2_") and the responsive-size suffix ("-p-800"). */
 export function fileNameOf(src: string): string {
   let name = src.split(/[?#]/)[0].split('/').pop() ?? '';
   try { name = decodeURIComponent(name); } catch { /* keep as is */ }
-  return name.replace(/^[0-9a-f]{24}_/i, '').replace(/-p-\d+(?=\.[a-z0-9]+$)/i, '');
+  // A CMS image is re-hosted with a second id in front: "<id>_<id>_rosso_01.jpeg".
+  return name.replace(/^(?:[0-9a-f]{24}_)+/i, '').replace(/-p-\d+(?=\.[a-z0-9]+$)/i, '');
 }
 
 export function normalize(raw: RawData): Normalized {

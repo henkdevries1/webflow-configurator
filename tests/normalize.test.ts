@@ -44,6 +44,8 @@ const raw: RawData = {
 test('file names: Webflow asset id, encoding and responsive suffix are stripped', () => {
   assert.equal(fileNameOf(asset('rosso_02_roll-cage%2Bno-helmet-shell.jpg?v=2')), 'rosso_02_roll-cage+no-helmet-shell.jpg');
   assert.equal(fileNameOf(`${CDN}65f1a2b3c4d5e6f7a8b9c0d1_rosso_02-p-800.jpg`), 'rosso_02.jpg');
+  // CMS image fields re-host an asset under a second id.
+  assert.equal(fileNameOf(`${CDN}6adf3b736bdad5ff794114d0_6adf3a868ee76d877b41422e_rosso-cordoba_01.jpeg`), 'rosso-cordoba_01.jpeg');
 });
 
 test('prices as editors type them', () => {
