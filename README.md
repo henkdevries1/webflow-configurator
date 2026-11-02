@@ -298,6 +298,8 @@ EXPORT_TOKEN=… WEBFLOW_TOKEN=… node scripts/sync-venduetto.ts --apply    # c
 EXPORT_TOKEN=… WEBFLOW_TOKEN=… node scripts/sync-venduetto.ts --apply --publish-staging   # and publishes to webflow.io only
 ```
 
+- Keep both tokens in `.env.sync` (git-ignored) and run with
+  `node --env-file=.env.sync scripts/sync-venduetto.ts`.
 - `EXPORT_TOKEN` is Venduetto's (`GET /api/export/configurator`, see its
   docs/ARCHITECTURE.md → "Webflow export"); `WEBFLOW_TOKEN` a Webflow site
   token with CMS read/write (plus Sites write for `--publish-staging`).
