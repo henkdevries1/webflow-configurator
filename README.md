@@ -298,8 +298,10 @@ EXPORT_TOKEN=… WEBFLOW_TOKEN=… node scripts/sync-venduetto.ts --apply    # c
 EXPORT_TOKEN=… WEBFLOW_TOKEN=… node scripts/sync-venduetto.ts --apply --publish-staging   # and publishes to webflow.io only
 ```
 
-- Keep both tokens in `.env.sync` (git-ignored) and run with
-  `node --env-file=.env.sync scripts/sync-venduetto.ts`.
+- The tokens live in 1Password; `.env.sync` (git-ignored) holds only
+  `op://` references. Run through the 1Password CLI, which asks for Touch ID
+  and hands the tokens to this one process:
+  `op run --env-file=.env.sync -- node scripts/sync-venduetto.ts [--apply]`.
 - `EXPORT_TOKEN` is Venduetto's (`GET /api/export/configurator`, see its
   docs/ARCHITECTURE.md → "Webflow export"); `WEBFLOW_TOKEN` a Webflow site
   token with CMS read/write (plus Sites write for `--publish-staging`).
