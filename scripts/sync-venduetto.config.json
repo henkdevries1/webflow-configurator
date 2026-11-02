@@ -1,10 +1,10 @@
 {
-  "exportUrl": "https://venduetto.com/api/export/configurator",
+  "exportUrl": "https://www.venduetto.com/api/export/configurator",
   "siteId": "69496bd5c9e588654537d2f5",
   "optionsCollection": "6adf3a552a2b9f41775b8ca4",
   "rendersCollection": "6adf3a56cbe229030cf8f374",
   "worksCollection": "69496bd6c9e588654537d47e",
   "worksItem": "6adf3bb2f5450d5ce30ed339",
   "basePriceField": "configurator-base-price",
-  "templateGroups": ["paint", "cockpit"]
+  "templateGroups": ["paint", "cockpit", "wheels"]
 }
