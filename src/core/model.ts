@@ -285,6 +285,7 @@ export function hasAnyPrice(model: Model, baseCents: number | null): boolean {
 export function groupHint(group: Group, labels: Labels): string {
   const n = group.options.length;
   if (group.kind === 'toggle') return n === 1 ? labels.optional : labels.optionalAny;
+  if (n === 1) return group.kind === 'paint' ? labels.onlyColour : labels.onlyOne;
   return fill(group.kind === 'paint' ? labels.pickColour : labels.pickOne, { n });
 }
 

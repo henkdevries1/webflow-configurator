@@ -27,7 +27,7 @@ server. Everything is set up in the Webflow Designer and CMS.
 1. **Add the script** — Site settings → Custom code → *Footer code* (or the page's *Before `</body>`*):
 
    ```html
-   <script defer src="https://cdn.jsdelivr.net/gh/henkdevries1/webflow-configurator@v0.1.0/dist/configurator.js"></script>
+   <script defer src="https://cdn.jsdelivr.net/gh/henkdevries1/webflow-configurator@v0.2.1/dist/configurator.js"></script>
    ```
 
 2. **Add a Div Block** where the configurator should appear, with the custom attribute
@@ -348,7 +348,7 @@ The script is served by jsDelivr straight from this GitHub repository, so `dist/
 A release = bump `version` in `package.json`, `npm run build`, commit, tag `vX.Y.Z`, push the tag:
 
 ```
-https://cdn.jsdelivr.net/gh/henkdevries1/webflow-configurator@v0.1.0/dist/configurator.js
+https://cdn.jsdelivr.net/gh/henkdevries1/webflow-configurator@v0.2.1/dist/configurator.js
 ```
 
 Sites pin a tag, so a new release never changes a live site until its script tag is updated.

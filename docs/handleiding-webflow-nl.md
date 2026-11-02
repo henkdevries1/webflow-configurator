@@ -8,7 +8,7 @@ Voor de Webflow-designer. De volledige referentie (alle attributen, events, styl
 Site settings → Custom code → **Footer code**:
 
 ```html
-<script defer src="https://cdn.jsdelivr.net/gh/henkdevries1/webflow-configurator@v0.1.0/dist/configurator.js"></script>
+<script defer src="https://cdn.jsdelivr.net/gh/henkdevries1/webflow-configurator@v0.2.1/dist/configurator.js"></script>
 ```
 
 ## 2. CMS-collecties aanmaken
