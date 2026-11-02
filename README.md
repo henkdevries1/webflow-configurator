@@ -285,6 +285,37 @@ A `<script type="application/json" tcfg-element="json">{ … }</script>` inside 
 
 ---
 
+## Venduetto sync
+
+The Venduetto case on tornante.studio shows the configurator Venduetto
+manages in its own admin (venduetto.com/manage). `scripts/sync-venduetto.ts`
+copies it into this site's CMS, so paints, options, prices and renders are
+only ever entered once, in Venduetto:
+
+```sh
+EXPORT_TOKEN=… WEBFLOW_TOKEN=… node scripts/sync-venduetto.ts            # dry run: prints what would change
+EXPORT_TOKEN=… WEBFLOW_TOKEN=… node scripts/sync-venduetto.ts --apply    # carries it out (staged, not published)
+EXPORT_TOKEN=… WEBFLOW_TOKEN=… node scripts/sync-venduetto.ts --apply --publish-staging   # and publishes to webflow.io only
+```
+
+- `EXPORT_TOKEN` is Venduetto's (`GET /api/export/configurator`, see its
+  docs/ARCHITECTURE.md → "Webflow export"); `WEBFLOW_TOKEN` a Webflow site
+  token with CMS read/write (plus Sites write for `--publish-staging`).
+- The ids it writes to are in `scripts/sync-venduetto.config.json`.
+- **The sync owns the two configurator collections**: an option or render
+  that is not in Venduetto is removed (more than 10 removals need
+  `--allow-deletes`). A second client's configurator gets its own
+  collections.
+- Options are matched on group + code, renders on paint + view +
+  combination; Webflow fetches a render's picture itself (the `Source`
+  field) and only again when Venduetto's picture changes. The base price goes
+  to the Works item's "Configurator base price".
+- A group the Works template does not declare (`tcfg-element="group"`) is
+  reported, not created: add it in the Designer and to `templateGroups`.
+- Render sets' interiors are kept in the `Seat` field for the 3D seat
+  (not used by the website yet).
+- `--publish-staging` never publishes a custom domain.
+
 ## Development
 
 ```bash
